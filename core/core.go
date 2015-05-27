@@ -60,6 +60,7 @@ type EncryptRequest struct {
 	Owners      []string
 	LeftOwners  []string
 	RightOwners []string
+	Predicate   string
 
 	Data []byte
 
@@ -283,6 +284,7 @@ func Encrypt(jsonIn []byte) ([]byte, error) {
 		Names:      s.Owners,
 		LeftNames:  s.LeftOwners,
 		RightNames: s.RightOwners,
+		Predicate:  s.Predicate,
 	}
 
 	if resp, err := crypt.Encrypt(s.Data, s.Labels, access); err != nil {
