@@ -12,8 +12,8 @@ import (
 
 	"github.com/cloudflare/redoctober/cryptor"
 	"github.com/cloudflare/redoctober/keycache"
-	"github.com/cloudflare/redoctober/passvault"
 	"github.com/cloudflare/redoctober/order"
+	"github.com/cloudflare/redoctober/passvault"
 )
 
 var (
@@ -58,7 +58,7 @@ type PasswordRequest struct {
 	Password string
 
 	NewPassword string
-	Email string
+	Email       string
 }
 
 type EncryptRequest struct {
@@ -102,8 +102,8 @@ type OrderRequest struct {
 	Name     string
 	Password string
 
-	Data     []byte
-	Label	 string
+	Data  []byte
+	Label string
 }
 
 type OrderInfoRequest struct {
@@ -116,6 +116,7 @@ type OrderOutstandingRequest struct {
 	Name     string
 	Password string
 }
+
 // These structures map the JSON responses that will be sent from the API
 
 type ResponseData struct {
@@ -207,7 +208,7 @@ func Init(path string) error {
 		err = fmt.Errorf("failed to load password vault %s: %s", path, err)
 	}
 
-	//Without this, we will be attempting to enter into a nil map
+	// Without this, we will be attempting to enter into a nil map
 	if orders == nil {
 		orders = make(order.Orders)
 	}
@@ -359,8 +360,8 @@ func Delegate(jsonIn []byte) ([]byte, error) {
 		return jsonStatusError(err)
 	}
 
-	//if something was delegated, check to see the current orders and
-	//  increment the order delegated if it exists
+	// if something was delegated, check to see the current orders and
+	// increment it.
 	orderNums := order.GenerateNums(s.Users, s.Labels)
 	for _, orderNum := range orderNums {
 		if ord, ok := orders[orderNum]; ok {
@@ -460,7 +461,7 @@ func Decrypt(jsonIn []byte) ([]byte, error) {
 		return jsonStatusError(err)
 	}
 
-	data, allLabels , names, secure, err := crypt.Decrypt(s.Data, s.Name)
+	data, allLabels, names, secure, err := crypt.Decrypt(s.Data, s.Name)
 	if err != nil {
 		return jsonStatusError(err)
 	}
@@ -476,8 +477,8 @@ func Decrypt(jsonIn []byte) ([]byte, error) {
 		return jsonStatusError(err)
 	}
 
-	//If everything decrpyted properly. Check to
-	//  see if there was an order for it and kill it.
+	// If everything decrpyted properly. Check to
+	// see if there was an order for it and kill it.
 	orderNums := order.GenerateNums([]string{s.Name}, allLabels)
 	for _, orderNum := range orderNums {
 		if _, ok := orders[orderNum]; ok {
@@ -632,10 +633,10 @@ func Order(jsonIn []byte) (out []byte, err error) {
 	contacts := crypt.GetContacts(owners)
 	numDelegated := cache.DelegateStatus(o.Name, o.Label, owners)
 	order := order.CreateOrder(o.Name,
-				   o.Label,
-				   orderNum,
-				   contacts,
-				   numDelegated)
+		o.Label,
+		orderNum,
+		contacts,
+		numDelegated)
 	orders[orderNum] = order
 	out, err = json.Marshal(order)
 	if err != nil {
