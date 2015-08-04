@@ -86,6 +86,7 @@ type PasswordRecord struct {
 		ECPublic ECPublicKey
 	}
 	Admin bool
+	Email string
 }
 
 // diskRecords is the structure used to read and write a JSON file
@@ -364,8 +365,16 @@ func (records *Records) AddNewRecord(name, password string, admin bool, userType
 }
 
 // ChangePassword changes the password for a given user.
-func (records *Records) ChangePassword(name, password, newPassword string) (err error) {
+func (records *Records) ChangePassword(name, password, newPassword, email string) (err error) {
 	pr, ok := records.GetRecord(name)
+
+	if len(email) != 0 {
+		pr.Email = email
+	}
+	if len(newPassword) == 0 {
+		records.SetRecord(pr, name)
+		return records.WriteRecordsToDisk()
+	}
 	if !ok {
 		err = errors.New("Record not present")
 		return

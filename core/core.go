@@ -13,12 +13,14 @@ import (
 	"github.com/cloudflare/redoctober/cryptor"
 	"github.com/cloudflare/redoctober/keycache"
 	"github.com/cloudflare/redoctober/passvault"
+	"github.com/cloudflare/redoctober/order"
 )
 
 var (
 	crypt   cryptor.Cryptor
 	records passvault.Records
 	cache   keycache.Cache
+	orders  order.Orders
 )
 
 // Each of these structures corresponds to the JSON expected on the
@@ -56,6 +58,7 @@ type PasswordRequest struct {
 	Password string
 
 	NewPassword string
+	Email string
 }
 
 type EncryptRequest struct {
@@ -95,6 +98,24 @@ type ExportRequest struct {
 	Password string
 }
 
+type OrderRequest struct {
+	Name     string
+	Password string
+
+	Data     []byte
+	Label	 string
+}
+
+type OrderInfoRequest struct {
+	Name     string
+	Password string
+
+	OrderNum string
+}
+type OrderOutstandingRequest struct {
+	Name     string
+	Password string
+}
 // These structures map the JSON responses that will be sent from the API
 
 type ResponseData struct {
@@ -186,8 +207,13 @@ func Init(path string) error {
 		err = fmt.Errorf("failed to load password vault %s: %s", path, err)
 	}
 
+	//Without this, we will be attempting to enter into a nil map
+	if orders == nil {
+		orders = make(order.Orders)
+	}
+
 	cache = keycache.Cache{UserKeys: make(map[string]keycache.ActiveUser)}
-	crypt = cryptor.New(&records, &cache)
+	crypt = cryptor.New(&records, &cache, &orders)
 
 	return err
 }
@@ -333,6 +359,15 @@ func Delegate(jsonIn []byte) ([]byte, error) {
 		return jsonStatusError(err)
 	}
 
+	//if something was delegated, check to see the current orders and
+	//  increment the order delegated if it exists
+	orderNums := order.GenerateNums(s.Users, s.Labels)
+	for _, orderNum := range orderNums {
+		if ord, ok := orders[orderNum]; ok {
+			ord.Delegated++
+			orders[orderNum] = ord
+		}
+	}
 	return jsonStatusOk()
 }
 
@@ -359,7 +394,7 @@ func Password(jsonIn []byte) ([]byte, error) {
 	}
 
 	// add signed-in record to active set
-	err = records.ChangePassword(s.Name, s.Password, s.NewPassword)
+	err = records.ChangePassword(s.Name, s.Password, s.NewPassword, s.Email)
 	if err != nil {
 		return jsonStatusError(err)
 	}
@@ -425,7 +460,7 @@ func Decrypt(jsonIn []byte) ([]byte, error) {
 		return jsonStatusError(err)
 	}
 
-	data, names, secure, err := crypt.Decrypt(s.Data, s.Name)
+	data, allLabels , names, secure, err := crypt.Decrypt(s.Data, s.Name)
 	if err != nil {
 		return jsonStatusError(err)
 	}
@@ -439,6 +474,15 @@ func Decrypt(jsonIn []byte) ([]byte, error) {
 	out, err := json.Marshal(resp)
 	if err != nil {
 		return jsonStatusError(err)
+	}
+
+	//If everything decrpyted properly. Check to
+	//  see if there was an order for it and kill it.
+	orderNums := order.GenerateNums([]string{s.Name}, allLabels)
+	for _, orderNum := range orderNums {
+		if _, ok := orders[orderNum]; ok {
+			delete(orders, orderNum)
+		}
 	}
 
 	return jsonResponse(out)
@@ -550,4 +594,106 @@ func Export(jsonIn []byte) ([]byte, error) {
 	}
 
 	return jsonResponse(out)
+}
+
+// Request delegates from other users
+func Order(jsonIn []byte) (out []byte, err error) {
+	var o OrderRequest
+
+	defer func() {
+		if err != nil {
+			log.Printf("core.order failed: user=%s %v", o.Name, err)
+		} else {
+			log.Printf("core.order success: user=%s", o.Name)
+		}
+	}()
+
+	if err = json.Unmarshal(jsonIn, &o); err != nil {
+		return jsonStatusError(err)
+	}
+
+	if err := validateUser(o.Name, o.Password, false); err != nil {
+		return jsonStatusError(err)
+	}
+
+	owners, err := crypt.GetOwners(o.Data)
+
+	//If this is a duplicate order then do nothing
+	orderNum := order.GenerateNum(o.Name, o.Label)
+	if _, dupe := orders[orderNum]; dupe {
+		errors.New("An order for delegations already exists")
+		return
+	}
+
+	cache.Refresh()
+	//Figure out the number of delegates already, for the case
+	//	where someone asks for delegates when they are already
+	//	half delegated
+	contacts := crypt.GetContacts(owners)
+	numDelegated := cache.DelegateStatus(o.Name, o.Label, owners)
+	order := order.CreateOrder(o.Name,
+				   o.Label,
+				   orderNum,
+				   contacts,
+				   numDelegated)
+	orders[orderNum] = order
+	out, err = json.Marshal(order)
+	if err != nil {
+		return jsonStatusError(err)
+	}
+	return jsonResponse(out)
+}
+
+func OrdersOut(jsonIn []byte) (out []byte, err error) {
+	var o OrderOutstandingRequest
+
+	defer func() {
+		if err != nil {
+			log.Printf("core.ordersout failed: user=%s %v", o.Name, err)
+		} else {
+			log.Printf("core.ordersout success: user=%s", o.Name)
+		}
+	}()
+
+	if err = json.Unmarshal(jsonIn, &o); err != nil {
+		return jsonStatusError(err)
+	}
+
+	if err := validateUser(o.Name, o.Password, false); err != nil {
+		return jsonStatusError(err)
+	}
+
+	out, err = json.Marshal(orders)
+	if err != nil {
+		return jsonStatusError(err)
+	}
+	return jsonResponse(out)
+}
+func OrderInfo(jsonIn []byte) (out []byte, err error) {
+	var o OrderInfoRequest
+
+	defer func() {
+		if err != nil {
+			log.Printf("core.order failed: user=%s %v", o.Name, err)
+		} else {
+			log.Printf("core.order success: user=%s", o.Name)
+		}
+	}()
+
+	if err = json.Unmarshal(jsonIn, &o); err != nil {
+		return jsonStatusError(err)
+	}
+
+	if err := validateUser(o.Name, o.Password, false); err != nil {
+		return jsonStatusError(err)
+	}
+
+	if ord, ok := orders[o.OrderNum]; ok {
+		out, err = json.Marshal(ord)
+		if err != nil {
+			return jsonStatusError(err)
+		}
+		return jsonResponse(out)
+	}
+	return
 }
