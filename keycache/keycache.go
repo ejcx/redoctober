@@ -280,3 +280,30 @@ func (cache *Cache) DecryptShares(in [][]byte, name, user string, labels []strin
 
 	return
 }
+func (cache *Cache) DelegateStatus(name string, label string, admins []string) (hasDelegated int) {
+	uk := cache.UserKeys
+	//Iterate over the admins of the ciphertext. Incredibly ugly but I don't
+	//  see a better way to find this information.
+	delegations := 0
+	for _, admin := range admins {
+		use := uk[admin].Usage
+		labelFound := false
+		nameFound := false
+		//Make sure the user who wants access is found
+		users := use.Users
+		for _, user := range users {
+			if user == name {
+				nameFound = true
+			}
+		}
+		for _, l := range use.Labels {
+			if l == label {
+				labelFound = true
+			}
+		}
+		if labelFound && nameFound {
+			delegations++
+		}
+	}
+	return delegations
+}

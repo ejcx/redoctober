@@ -27,13 +27,19 @@ import (
 // List of URLs to register and their related functions
 
 var functions = map[string]func([]byte) ([]byte, error){
-	"/create":   core.Create,
-	"/summary":  core.Summary,
-	"/delegate": core.Delegate,
-	"/password": core.Password,
-	"/encrypt":  core.Encrypt,
-	"/decrypt":  core.Decrypt,
-	"/modify":   core.Modify,
+	"/create":    core.Create,
+	"/summary":   core.Summary,
+	"/purge":     core.Purge,
+	"/delegate":  core.Delegate,
+	"/password":  core.Password,
+	"/encrypt":   core.Encrypt,
+	"/decrypt":   core.Decrypt,
+	"/owners":    core.Owners,
+	"/modify":    core.Modify,
+	"/export":    core.Export,
+	"/order":     core.Order,
+	"/orderout":  core.OrdersOut,
+	"/orderinfo": core.OrderInfo,
 }
 
 type userRequest struct {
@@ -132,6 +138,7 @@ func NewServer(process chan<- userRequest, staticPath, addr, certPath, keyPath, 
 		// copy this so reference does not get overwritten
 		requestType := current
 		mux.HandleFunc(requestType, func(w http.ResponseWriter, r *http.Request) {
+			log.Printf("http.server: endpoint=%s remote=%s", requestType, r.RemoteAddr)
 			queueRequest(process, requestType, w, r)
 		})
 	}
@@ -223,10 +230,10 @@ func main() {
 				if err == nil {
 					req.resp <- r
 				} else {
-					log.Printf("Error handling %s: %s\n", req.rt, err)
+					log.Printf("http.main failed: %s: %s", req.rt, err)
 				}
 			} else {
-				log.Printf("Unknown user request received: %s\n", req.rt)
+				log.Printf("http.main: request=%s function is not supported", req.rt)
 			}
 
 			// Note that if an error occurs no message is sent down
@@ -273,6 +280,7 @@ var indexHtml = []byte(`<!DOCTYPE html>
 					<li><a href="#admin">Admin</a></li>
 					<li><a href="#encrypt">Encrypt</a></li>
 					<li><a href="#decrypt">Decrypt</a></li>
+					<li><a href="#owners">Owners</a></li>
 				</ul>
 			</div>
 		</div>
@@ -326,7 +334,7 @@ var indexHtml = []byte(`<!DOCTYPE html>
 
 		<section class="row">
 			<div id="summary" class="col-md-6">
-				<h3>User summary</h3>
+				<h3>User summary / delegation list</h3>
 
 				<form id="vault-summary" class="form-inline ro-summary" role="form" action="/summary" method="post">
 					<div class="feedback summary-feedback"></div>
@@ -356,7 +364,7 @@ var indexHtml = []byte(`<!DOCTYPE html>
 
 		<section class="row">
 			<div class="col-md-6" id="admin">
-				<h3>Create Vault</h3>
+				<h3>Create vault</h3>
 				<form id="vault-create" class="form-inline ro-admin-create" role="form" action="/create" method="post">
 					<div class="feedback admin-feedback"></div>
 
@@ -405,7 +413,7 @@ var indexHtml = []byte(`<!DOCTYPE html>
 
 		<section class="row">
 			<div id="change-password" class="col-md-6">
-				<h3>Change password</h3>
+				<h3>Change account</h3>
 
 				<form id="user-change-password" class="ro-user-change-password" role="form" action="/password" method="post">
 					<div class="feedback change-password-feedback"></div>
@@ -413,21 +421,23 @@ var indexHtml = []byte(`<!DOCTYPE html>
 					<div class="form-group row">
 						<div class="col-md-6">
 							<label for="user-name">User name</label>
-							<input type="text" name="Name" class="form-control" id="user-name" placeholder="User name" required />
+							<input type="text" name="Name" class="form-control" id="user-name" placeholder="User name"/ required>
 						</div>
 						<div class="col-md-6">
 							<label for="user-pass">Password</label>
-							<input type="password" name="Password" class="form-control" id="user-pass" placeholder="Password" required />
+							<input type="password" name="Password" class="form-control" id="user-pass" placeholder="Password"/ required>
 						</div>
 					</div>
 					<div class="form-group">
-						<label for="user-pass">New password</label>
-						<input type="password" name="NewPassword" class="form-control" id="user-pass-new" placeholder="New password" required />
+						<label for="user-pass">New password. Blank for no change.</label>
+						<input type="password" name="NewPassword" class="form-control" id="user-pass-new" placeholder="New Password"/>
+						<label for="user-email">Email. Blank for no change.</label>
+						<input type="email" name="Email" class="form-control" id="user-email-new" placeholder="New Email"/>
 					</div>
 					<button type="submit" class="btn btn-primary">Change password</button>
 				</form>
 
-				<h3>Modify User</h3>
+				<h3>Modify user</h3>
 
 				<form id="user-modify" class="ro-user-modify" role="form" action="/modify" method="post">
 					<div class="feedback modify-feedback"></div>
@@ -501,6 +511,9 @@ var indexHtml = []byte(`<!DOCTYPE html>
 					<button type="submit" class="btn btn-primary">Encrypt!</button>
 				</form>
 			</div>
+		</section>
+		<hr />
+		<section class="row">
 			<div id="decrypt" class="col-md-6">
 				<h3>Decrypt data</h3>
 
@@ -525,6 +538,100 @@ var indexHtml = []byte(`<!DOCTYPE html>
 				</form>
 			</div>
 		</section>
+		<hr />
+		<section class="row">
+			<div id="owners" class="col-md-6">
+				<h3>Get owners</h3>
+
+				<form id="owners" class="ro-user-owners" role="form" action="/owners" method="post">
+					<div class="feedback owners-feedback"></div>
+
+					<div class="form-group">
+						<label for="owners-data">Data</label>
+						<textarea name="Data" class="form-control" id="owners-data" rows="5" required></textarea>
+					</div>
+					<button type="submit" class="btn btn-primary">Get Owners</button>
+				</form>
+			</div>
+		</section>
+		<hr />
+		<section class="row">
+			<div id="orders" class="col-md-6">
+				<h3>Create Order</h3>
+
+				<form id="order" class="ro-user-order" role="form" action="/order" method="post">
+					<div class="feedback order-feedback"></div>
+					<div class="form-group">
+					<div class="form-group row">
+						<div class="col-md-6">
+							<label for="order-user-admin">User name</label>
+							<input type="text" name="Name" class="form-control" id="order-user-admin" placeholder="User name" required />
+						</div>
+						<div class="col-md-6">
+							<label for="decrypt-user-pass">Password</label>
+							<input type="password" name="Password" class="form-control" id="order-user-pass" placeholder="Password" required />
+						</div>
+						<div class="col-md-6">
+							<label for="decrypt-user-pass">Label</label>
+							<input type="text" name="Label" class="form-control" id="order-user-label" placeholder="Label" required />
+						</div>
+					</div>
+
+						<label for="owners-data">Data</label>
+						<textarea name="Data" class="form-control" id="owners-data" rows="5" required></textarea>
+					</div>
+					<button type="submit" class="btn btn-primary">Create Order</button>
+				</form>
+			</div>
+		</section>
+		<hr />
+		<section class="row">
+			<div id="ordersinfo" class="col-md-6">
+				<h3>Order Info</h3>
+
+				<form id="orderinfo" class="ro-user-order" role="form" action="/orderinfo" method="post">
+					<div style="overflow-wrap: break-word;" class="feedback orderinfo-feedback"></div>
+					<div class="form-group">
+					<div class="form-group row">
+						<div class="col-md-6">
+							<label for="orderinfo-user-admin">User name</label>
+							<input type="text" name="Name" class="form-control" id="orderinfo-user-admin" placeholder="User name" required />
+						</div>
+						<div class="col-md-6">
+							<label for="orderinfo-user-admin">Password</label>
+							<input type="password" name="Password" class="form-control" id="orderinfo-user-pass" placeholder="Password" required />
+						</div>
+						<div class="col-md-6">
+							<label for="orderinfo-order-num">Order Num</label>
+							<input type="text" name="OrderNum" class="form-control" id="orderinfo-user-label" placeholder="Order Number" required />
+						</div>
+					</div>
+					<button type="submit" class="btn btn-primary">Order Info</button>
+				</form>
+			</div>
+		</section>
+		<hr />
+		<section class="row">
+			<div id="ordersout" class="col-md-6">
+				<h3>Outstanding Orders</h3>
+
+				<form id="orderout" class="ro-user-order" role="form" action="/orderout" method="post">
+					<div style="overflow-wrap: break-word;" class="feedback ordersout-feedback"></div>
+					<div class="form-group">
+					<div class="form-group row">
+						<div class="col-md-6">
+							<label for="ordersout-user-admin">User name</label>
+							<input type="text" name="Name" class="form-control" id="ordersout-user-admin" placeholder="User name" required />
+						</div>
+						<div class="col-md-6">
+							<label for="ordersout-user-admin">Password</label>
+							<input type="password" name="Password" class="form-control" id="ordersout-user-pass" placeholder="Password" required />
+						</div>
+					</div>
+					<button type="submit" class="btn btn-primary">Outstanding Orders</button>
+				</form>
+			</div>
+		</section>
 	</div>
 
 	<footer id="footer" class="footer">
@@ -543,7 +650,6 @@ var indexHtml = []byte(`<!DOCTYPE html>
 
 			function submit( $form, options ){
 				options || (options = {});
-
 				$.ajax({
 					url: $form.attr('action'),
 					data: JSON.stringify( options.data ),
@@ -721,7 +827,7 @@ var indexHtml = []byte(`<!DOCTYPE html>
 			});
 
 			// Decrypt data
-			$('body').on('submit', '#decrypt', function(evt){
+			$('body').on('submit', 'form#decrypt', function(evt){
 				evt.preventDefault();
 				var $form = $(evt.currentTarget),
 					data = serialize($form);
@@ -731,6 +837,73 @@ var indexHtml = []byte(`<!DOCTYPE html>
 					success : function(d){
 					d = JSON.parse(window.atob(d.Response));
 					$form.find('.feedback').empty().append( makeAlert({ type: (d.Secure ? 'success' : 'warning'), message: '<p>Successfully decrypted data:</p><pre>'+ window.atob(d.Data)+'</pre><p>Delegates: '+d.Delegates.sort().join(', ')+'</p>' }) );
+					}
+				});
+			});
+
+			// Get owners
+			$('body').on('submit', 'form#owners', function(evt){
+				evt.preventDefault();
+				var $form = $(evt.currentTarget),
+					data = serialize($form);
+
+				submit( $form, {
+					data : data,
+					success : function(d){
+					$form.find('.feedback').empty().append( makeAlert({ type: 'success', message: '<p>Owners: '+d.Owners.sort().join(', ')+'</p>' }) );
+					}
+				});
+			});
+			// Create an order
+			$('body').on('submit', 'form#order', function(evt){
+				evt.preventDefault();
+				var $form = $(evt.currentTarget),
+					data = serialize($form);
+
+				submit( $form, {
+					data : data,
+					success : function(d){
+					d = JSON.parse(window.atob(d.Response));
+					$form.find('.feedback').empty().append(
+						makeAlert({ type: 'success', message: '<p>Order Num: '+d.Num+'</p>' }) );
+					}
+				});
+			});
+			// Get order info
+			$('body').on('submit', 'form#orderinfo', function(evt){
+				evt.preventDefault();
+				var $form = $(evt.currentTarget),
+					data = serialize($form);
+
+				submit( $form, {
+					data : data,
+					success : function(d){
+					d = window.atob(d.Response);
+					$form.find('.feedback').empty().append(
+						makeAlert({ type: 'success', message: '<p>'+d+'</p>' }) );
+					}
+				});
+			});
+			// Get outstanding order info
+			$('body').on('submit', 'form#orderout', function(evt){
+				evt.preventDefault();
+				var $form = $(evt.currentTarget),
+					data = serialize($form);
+
+				submit( $form, {
+					data : data,
+					success : function(d){
+					d = JSON.parse(window.atob(d.Response));
+					ordout = "";
+					for (var jj in d){
+						if (!d.hasOwnProperty(jj))
+							continue;
+						var o = d[jj]
+						ordout += o.Name + " requesting " + o.Label + " has " + o.Delegated + "\n";
+
+					}
+					$form.find('.feedback').empty().append(
+						makeAlert({ type: 'success', message: '<p>'+ordout+'</p>' }) );
 					}
 				});
 			});

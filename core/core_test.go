@@ -8,6 +8,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"os"
+	"reflect"
+	"sort"
 	"testing"
 
 	"github.com/cloudflare/redoctober/passvault"
@@ -158,6 +160,58 @@ func TestSummary(t *testing.T) {
 	}
 	if dataLive.Type != passvault.DefaultRecordType {
 		t.Fatalf("Error in summary of account, record missing")
+	}
+
+	var s1 SummaryData
+	delegations := cache.GetSummary()
+	if len(delegations) == 0 {
+		t.Fatal("no delegations active")
+	}
+
+	// check for summary of initialized vault without non-admin members after purge
+	respJson, err = Purge(createJson)
+	if err != nil {
+		t.Fatalf("Error in purging, %v", err)
+	}
+	err = json.Unmarshal(respJson, &s1)
+	if err != nil {
+		t.Fatalf("Error in purging, %v", err)
+	}
+	if s.Status != "ok" {
+		t.Fatalf("Error in purging, %v", s.Status)
+	}
+
+	respJson, err = Summary(createJson)
+	if err != nil {
+		t.Fatalf("Error in summary of account with no vault, %v", err)
+	}
+	err = json.Unmarshal(respJson, &s1)
+	if err != nil {
+		t.Fatalf("Error in summary of account with no vault, %v", err)
+	}
+	if s.Status != "ok" {
+		t.Fatalf("Error in summary of account with no vault, %v", s.Status)
+	}
+
+	data, ok = s1.All["Alice"]
+	if !ok {
+		t.Fatalf("Error in summary of account, record missing")
+	}
+	if data.Admin != true {
+		t.Fatalf("Error in summary of account, record missing")
+	}
+	if data.Type != passvault.DefaultRecordType {
+		t.Fatalf("Error in summary of account, record missing")
+	}
+
+	_, ok = s1.All["Bob"]
+	if !ok {
+		t.Fatal("Bob was removed from the list of users")
+	}
+
+	delegations = cache.GetSummary()
+	if len(delegations) != 0 {
+		t.Fatalf("purge failed to clear delegations (%d delegations remain)", len(delegations))
 	}
 }
 
@@ -450,6 +504,59 @@ func TestEncryptDecrypt(t *testing.T) {
 		if d.Delegates[1] != "Bob" && d.Delegates[0] != "Carol" {
 			t.Fatalf("Error in decrypt, %v", d.Delegates)
 		}
+	}
+}
+
+func TestOwners(t *testing.T) {
+	delegateJson := []byte("{\"Name\":\"Alice\",\"Password\":\"Hello\",\"Time\":\"0s\",\"Uses\":0}")
+	delegateJson2 := []byte("{\"Name\":\"Bob\",\"Password\":\"Hello\",\"Time\":\"0s\",\"Uses\":0}")
+	delegateJson3 := []byte("{\"Name\":\"Carol\",\"Password\":\"Hello\",\"Time\":\"0s\",\"Uses\":0}")
+	encryptJson := []byte("{\"Name\":\"Carol\",\"Password\":\"Hello\",\"Minumum\":2,\"Owners\":[\"Alice\",\"Bob\",\"Carol\"],\"Data\":\"SGVsbG8gSmVsbG8=\"}")
+
+	var s ResponseData
+	var l OwnersData
+
+	Init("memory")
+
+	Create(delegateJson)
+	Delegate(delegateJson2)
+	Delegate(delegateJson3)
+
+	// Encrypt with non-admin
+	respJson, err := Encrypt(encryptJson)
+	if err != nil {
+		t.Fatalf("Error in encrypt, %v", err)
+	}
+	err = json.Unmarshal(respJson, &s)
+	if err != nil {
+		t.Fatalf("Error in encrypt, %v", err)
+	}
+	if s.Status != "ok" {
+		t.Fatalf("Error in encrypt, %v", s.Status)
+	}
+
+	// Get owners list
+	ownersJson, err := json.Marshal(OwnersRequest{Data: s.Response})
+	if err != nil {
+		t.Fatalf("Error in owners, %v", err)
+	}
+	respJson, err = Owners(ownersJson)
+	if err != nil {
+		t.Fatalf("Error in owners, %v", err)
+	}
+	err = json.Unmarshal(respJson, &l)
+	if err != nil {
+		t.Fatalf("Error in owners, %v", err)
+	}
+	if l.Status != "ok" {
+		t.Fatalf("Error in owners, %v", l.Status)
+	}
+
+	sort.Strings(l.Owners)
+
+	expectedOwners := []string{"Alice", "Bob", "Carol"}
+	if !reflect.DeepEqual(l.Owners, expectedOwners) {
+		t.Fatalf("Owners list mismatch, %v", l.Owners)
 	}
 }
 

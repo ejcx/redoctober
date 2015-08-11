@@ -75,6 +75,7 @@ format is POSTed and JSON is returned.
  - `/modify`: Modify permissions
  - `/encrypt`: Encrypt
  - `/decrypt`: Decrypt
+ - `/owners`: List owners of an encrypted secret.
  - `/summary`: Display summary of the delegates
  - `/password`: Change password
  - `/index`: Optionally, the server can host a static HTML file.
@@ -113,7 +114,7 @@ Example query:
 
 Summary provides a list of the users with keys on the system, and a
 list of users who have currently delegated their key to the
-server. Only Admins are allowed to call summary.
+server.
 
 Example query:
 
@@ -144,7 +145,7 @@ Example query:
 
 ### Encrypt
 
-Encrypt allows an admin to encrypt a piece of data. A list of valid
+Encrypt allows a user to encrypt a piece of data. A list of valid
 users is provided and a minimum number of delegated users required to
 decrypt. The returned data can be decrypted as long as "Minimum"
 number users from the set of "Owners" have delegated their keys to the
@@ -163,7 +164,7 @@ The data expansion is not tied to the size of the input.
 
 ### Decrypt
 
-Decrypt allows an admin to decrypt a piece of data. As long as
+Decrypt allows a user to decrypt a piece of data. As long as
 "Minimum" number users from the set of "Owners" have delegated their
 keys to the server, a base64 encoded object with the clear data and the
 set of "Owners" whose private keys were used is returned.
@@ -177,6 +178,17 @@ Example query:
 If there aren't enough keys delegated you'll see:
 
     {"Status":"Need more delegated keys"}
+
+### Owners
+
+Owners allows users to determine which delegations are needed to decrypt
+a piece of data.
+
+Example query:
+
+    $ curl --cacert cert/server.crt https://localhost:8080/owners  \
+            -d '{"Data":"eyJWZXJzaW9uIj...NSSllzPSJ9"}'
+    {"Status":"ok","Owners":["Alice","Bill","Cat","Dodo"]}
 
 ### Password
 
@@ -204,6 +216,15 @@ Example input JSON format:
            -d '{"Name":"Alice","Password":"Lewis","ToModify":"Bill","Command":"admin"}'
     {"Status":"ok"}
 
+### Purge
+
+Purge deletes all delegates for an encryption key.
+
+Example input JSON format:
+
+    $ curl --cacert cert/server.crt https://localhost:8080/purge \
+           -d '{"Name":"Alice","Password":"Lewis"}'
+    {"Status":"ok"}
 
 ### Web interface
 
