@@ -696,7 +696,6 @@ func OrderInfo(jsonIn []byte) (out []byte, err error) {
 		if err != nil {
 			return jsonStatusError(err)
 		}
-		return jsonResponse(out)
 	}
-	return
+	return jsonResponse(out)
 }
