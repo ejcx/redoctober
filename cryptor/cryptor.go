@@ -17,10 +17,10 @@ import (
 
 	"github.com/cloudflare/redoctober/keycache"
 	"github.com/cloudflare/redoctober/msp"
+	"github.com/cloudflare/redoctober/order"
 	"github.com/cloudflare/redoctober/padding"
 	"github.com/cloudflare/redoctober/passvault"
 	"github.com/cloudflare/redoctober/symcrypt"
-	"github.com/cloudflare/redoctober/order"
 )
 
 const (
@@ -613,14 +613,18 @@ func (c *Cryptor) GetOwners(in []byte) (names []string, err error) {
 		}
 	}
 
+	predicatenames, prederr := msp.GetPredicateNames(encrypted.Predicate)
+	if prederr == nil {
+		names = append(names, predicatenames...)
+	}
 	return
 }
 
-func (c *Cryptor) GetContacts(names []string) (admins []order.AdminContact){
+func (c *Cryptor) GetContacts(names []string) (admins []order.AdminContact) {
 	passwordRecords := c.records.Passwords
 	for _, name := range names {
-		if passRecord, ok := passwordRecords[name] ; ok {
-			ord := order.AdminContact{Name:name, Email:passRecord.Email}
+		if passRecord, ok := passwordRecords[name]; ok {
+			ord := order.AdminContact{Name: name, Email: passRecord.Email}
 			admins = append(admins, ord)
 		}
 	}

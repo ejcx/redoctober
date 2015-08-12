@@ -367,3 +367,22 @@ func (m MSP) recoverSecret(modulus *big.Int, db *UserDatabase, cache map[string]
 	out = append(out, secInt.Bytes()...)
 	return out[len(out)-size:], nil
 }
+func (f Formatted) getformattednames() (names []string) {
+	for _, cond := range f.Conds {
+		switch cond.(type) {
+		case String:
+			names = append(names, cond.(String).string)
+		case Formatted:
+			names = append(names, cond.(Formatted).getformattednames()...)
+		}
+	}
+	return
+}
+func GetPredicateNames(s string) (names []string, err error) {
+	msp, err := StringToMSP(s)
+	if err != nil {
+		return
+	}
+	names = Formatted(msp).getformattednames()
+	return
+}
