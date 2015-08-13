@@ -59,6 +59,14 @@ You're ready to run the server:
                        -cert=cert/server.crt \
                        -key=cert/server.pem
 
+##Email notifications
+Email notifications can be turned on using the `-mail` flag, and specifying a JSON file containing the following pieces of information.
+ - `From`: The From Email Address.
+ - `Host`: The SMTP Server.
+ - `Port`: The SMTP port to connect to. Usually 25, 467, or 587
+ - `Identity`: Usually left blank. Refer to RFC 4616.
+ - `Username`: Email username. Refer to RFC 4616
+ - `Password`: Email password. Refer to RFC 4616.
 ## Quick start: example webapp
 
 At this point Red October should be serving an example webapp. Access it using your browser:
