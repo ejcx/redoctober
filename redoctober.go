@@ -100,7 +100,6 @@ func NewServer(process chan<- userRequest, staticPath, addr, certPath, keyPath, 
 
 	// If a caPath has been specified then a local CA is being used
 	// and not the system configuration.
-
 	if caPath != "" {
 		pemCert, err := ioutil.ReadFile(caPath)
 		if err != nil {
@@ -203,6 +202,7 @@ func main() {
 	var certPath = flag.String("cert", "", "Path of TLS certificate in PEM format")
 	var keyPath = flag.String("key", "", "Path of TLS private key in PEM format")
 	var caPath = flag.String("ca", "", "Path of TLS CA for client authentication (optional)")
+	var smtpPath = flag.String("mail", "", "Path of SMTP JSON Info file")
 	flag.Parse()
 
 	if *vaultPath == "" || *addr == "" || *certPath == "" || *keyPath == "" {
@@ -211,7 +211,7 @@ func main() {
 		os.Exit(2)
 	}
 
-	if err := core.Init(*vaultPath); err != nil {
+	if err := core.Init(*vaultPath, *smtpPath); err != nil {
 		log.Fatalf(err.Error())
 	}
 

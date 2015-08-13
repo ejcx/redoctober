@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"log"
 
 	"github.com/cloudflare/redoctober/cryptor"
@@ -20,7 +21,7 @@ var (
 	crypt   cryptor.Cryptor
 	records passvault.Records
 	cache   keycache.Cache
-	orders  order.Orders
+	orderer order.Orderer
 )
 
 // Each of these structures corresponds to the JSON expected on the
@@ -194,28 +195,38 @@ func validateName(name, password string) error {
 }
 
 // Init reads the records from disk from a given path
-func Init(path string) error {
+func Init(vaultPath, smtpPath string) error {
 	var err error
 
 	defer func() {
 		if err != nil {
 			log.Printf("core.init failed: %v", err)
 		} else {
-			log.Printf("core.init success: path=%s", path)
+			log.Printf("core.init success: vaultPath=%s", vaultPath)
 		}
 	}()
 
-	if records, err = passvault.InitFrom(path); err != nil {
-		err = fmt.Errorf("failed to load password vault %s: %s", path, err)
+	if records, err = passvault.InitFrom(vaultPath); err != nil {
+		err = fmt.Errorf("failed to load password vault %s: %s", vaultPath, err)
 	}
 
 	// Without this, we will be attempting to enter into a nil map
-	if orders == nil {
-		orders = make(order.Orders)
-	}
+	orderer.PrepareOrders()
 
+	if smtpPath != "" {
+		orderer.Notifier = *new(order.SmtpAuth)
+		smtpBytes, err := ioutil.ReadFile(smtpPath)
+		if err != nil {
+			return err
+		}
+		err = json.Unmarshal(smtpBytes, &orderer.Notifier)
+		if err != nil {
+			return err
+		}
+
+	}
 	cache = keycache.Cache{UserKeys: make(map[string]keycache.ActiveUser)}
-	crypt = cryptor.New(&records, &cache, &orders)
+	crypt = cryptor.New(&records, &cache, &orderer)
 
 	return err
 }
@@ -365,9 +376,9 @@ func Delegate(jsonIn []byte) ([]byte, error) {
 	// increment it.
 	orderNums := order.GenerateNums(s.Users, s.Labels)
 	for _, orderNum := range orderNums {
-		if ord, ok := orders[orderNum]; ok {
+		if ord, ok := orderer.Orders[orderNum]; ok {
 			ord.Delegated++
-			orders[orderNum] = ord
+			orderer.Orders[orderNum] = ord
 		}
 	}
 	return jsonStatusOk()
@@ -483,8 +494,13 @@ func Decrypt(jsonIn []byte) ([]byte, error) {
 	// see if there was an order for it and kill it.
 	orderNums := order.GenerateNums([]string{s.Name}, allLabels)
 	for _, orderNum := range orderNums {
-		if _, ok := orders[orderNum]; ok {
-			delete(orders, orderNum)
+		if _, ok := orderer.Orders[orderNum]; ok {
+			owners, err := crypt.GetOwners(s.Data)
+			if err == nil {
+				contacts := crypt.GetContacts(owners)
+				go orderer.Notifier.Notify(contacts, orderNum, s.Name, order.OrderFulfilled)
+			}
+			delete(orderer.Orders, orderNum)
 		}
 	}
 
@@ -623,23 +639,24 @@ func Order(jsonIn []byte) (out []byte, err error) {
 
 	//If this is a duplicate order then do nothing
 	orderNum := order.GenerateNum(o.Name, o.Label)
-	if _, dupe := orders[orderNum]; dupe {
+	if _, dupe := orderer.Orders[orderNum]; dupe {
 		errors.New("An order for delegations already exists")
 		return
 	}
-
 	cache.Refresh()
 	//Figure out the number of delegates already, for the case
 	//	where someone asks for delegates when they are already
 	//	half delegated
 	contacts := crypt.GetContacts(owners)
+	go orderer.Notifier.Notify(contacts, o.Label, o.Name, order.NewOrder)
+
 	numDelegated := cache.DelegateStatus(o.Name, o.Label, owners)
 	order := order.CreateOrder(o.Name,
 		o.Label,
 		orderNum,
 		contacts,
 		numDelegated)
-	orders[orderNum] = order
+	orderer.Orders[orderNum] = order
 	out, err = json.Marshal(order)
 	if err != nil {
 		return jsonStatusError(err)
@@ -666,7 +683,7 @@ func OrdersOut(jsonIn []byte) (out []byte, err error) {
 		return jsonStatusError(err)
 	}
 
-	out, err = json.Marshal(orders)
+	out, err = json.Marshal(orderer.Orders)
 	if err != nil {
 		return jsonStatusError(err)
 	}
@@ -691,7 +708,7 @@ func OrderInfo(jsonIn []byte) (out []byte, err error) {
 		return jsonStatusError(err)
 	}
 
-	if ord, ok := orders[o.OrderNum]; ok {
+	if ord, ok := orderer.Orders[o.OrderNum]; ok {
 		out, err = json.Marshal(ord)
 		if err != nil {
 			return jsonStatusError(err)
