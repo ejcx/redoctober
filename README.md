@@ -67,6 +67,7 @@ Email notifications can be turned on using the `-mail` flag, and specifying a JS
  - `Identity`: Usually left blank. Refer to RFC 4616.
  - `Username`: Email username. Refer to RFC 4616
  - `Password`: Email password. Refer to RFC 4616.
+
 ## Quick start: example webapp
 
 At this point Red October should be serving an example webapp. Access it using your browser:
