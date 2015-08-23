@@ -226,7 +226,7 @@ func Init(vaultPath, smtpPath string) error {
 
 	}
 	cache = keycache.Cache{UserKeys: make(map[string]keycache.ActiveUser)}
-	crypt = cryptor.New(&records, &cache, &orderer)
+	crypt = cryptor.New(&records, &cache, orderer)
 
 	return err
 }
@@ -553,9 +553,9 @@ func Modify(jsonIn []byte) ([]byte, error) {
 
 	if err != nil {
 		return jsonStatusError(err)
-	} else {
-		return jsonStatusOk()
 	}
+
+	return jsonStatusOk()
 }
 
 // Owners processes a owners request.
@@ -615,7 +615,7 @@ func Export(jsonIn []byte) ([]byte, error) {
 	return jsonResponse(out)
 }
 
-// Request delegates from other users
+// Order a Request delegates from other users
 func Order(jsonIn []byte) (out []byte, err error) {
 	var o OrderRequest
 
@@ -636,17 +636,20 @@ func Order(jsonIn []byte) (out []byte, err error) {
 	}
 
 	owners, err := crypt.GetOwners(o.Data)
-
-	//If this is a duplicate order then do nothing
+	if err != nil {
+		errors.New("Unable to find the ciphertext's owners.")
+		return
+	}
+	// If this is a duplicate order then do nothing
 	orderNum := order.GenerateNum(o.Name, o.Label)
 	if _, dupe := orderer.Orders[orderNum]; dupe {
 		errors.New("An order for delegations already exists")
 		return
 	}
 	cache.Refresh()
-	//Figure out the number of delegates already, for the case
-	//	where someone asks for delegates when they are already
-	//	half delegated
+	// Figure out the number of delegates already, for the case
+	// where someone asks for delegates when they are already
+	// half delegated
 	contacts := crypt.GetContacts(owners)
 	go orderer.Notifier.Notify(contacts, o.Label, o.Name, order.NewOrder)
 
@@ -664,6 +667,9 @@ func Order(jsonIn []byte) (out []byte, err error) {
 	return jsonResponse(out)
 }
 
+// OrdersOut will provide a list of current outstanding
+// orders to admins who may be looking for someone to provide
+// delegates to.
 func OrdersOut(jsonIn []byte) (out []byte, err error) {
 	var o OrderOutstandingRequest
 
@@ -689,6 +695,9 @@ func OrdersOut(jsonIn []byte) (out []byte, err error) {
 	}
 	return jsonResponse(out)
 }
+
+// OrderInfo is used to retrieve information about a particular
+// order number, passed in by a client.
 func OrderInfo(jsonIn []byte) (out []byte, err error) {
 	var o OrderInfoRequest
 

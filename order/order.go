@@ -1,9 +1,8 @@
 package order
 
 import (
-	"crypto/sha256"
-	//	"errors"
 	"bytes"
+	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"log"
@@ -11,15 +10,22 @@ import (
 	"text/template"
 )
 
+// NewOrder is sent to admins of a ciphertext
+// when a new order is created.
 var NewOrder = `
 	Hello,
 	{{.From}} has requested delegates for {{.Label}}
 `
+
+// OrderFulfilled is sent to admins of a ciphertext
+// when a requested ciphertext is decrypted
 var OrderFulfilled = `
 	Hello,
 	{{.From}}'s request for has been {{.Label}} fulfilled
 `
 
+// Order is an individual request for delegates that
+// any user can make.
 type Order struct {
 	Name string
 	Num  string
@@ -30,27 +36,37 @@ type Order struct {
 	Admins          []AdminContact
 	Label           string
 }
+
+// AdminContact essentially couples the name with
+// the email address of a user into one type
 type AdminContact struct {
 	Name  string
 	Email string
 }
+
+// SmtpAuth contains the information needed
+// to create an smtp.PlainAuth.
 type SmtpAuth struct {
 	Host, Username, Password string
 	Port, Addr, Identity     string
 }
+
+// Notifier is an interface to provide a standard
+// method for notifications over any type of medium.
 type Notifier interface {
 	Notify(to, label, name, msg string)
 }
+
+// Orders is a mapping of an order id
+// which is a string, to an entire order.
+// Order IDs are not secret and are static.
 type Orderer struct {
 	Orders   map[string]Order
 	Notifier SmtpAuth
 }
 
-// Orders represents a mapping of Order IDs to Orders. This structure
-// is useful for looking up information about individual Orders and
-// whether or not an order has been fulfilled. Orders that have been
-// fulfilled will removed from the structure.
-
+// CreateOrder is essentially a factory function for turning
+// the information that belongs in an order, into an order type
 func CreateOrder(name string, labels string, orderNum string, contacts []AdminContact, numDelegated int) (ord Order) {
 	ord.Name = name
 	ord.Num = orderNum
@@ -60,6 +76,10 @@ func CreateOrder(name string, labels string, orderNum string, contacts []AdminCo
 	return
 }
 
+// GenerateNum takes a name and a label and and turns it
+// into an order number. Currently it is only a SHA256 sum
+// of the label and orderer name. This means order numbers
+// are static for as long as orders are being placed.
 func GenerateNum(name string, label string) (num string) {
 
 	hasher := sha256.New()
@@ -68,6 +88,9 @@ func GenerateNum(name string, label string) (num string) {
 	return hex.EncodeToString(hexNum)
 
 }
+
+// GenerateNums will take a slice of labels and names
+// and return all of their possible order numbers.
 func GenerateNums(names, labels []string) (nums []string) {
 	for _, name := range names {
 		for _, label := range labels {
@@ -76,10 +99,13 @@ func GenerateNums(names, labels []string) (nums []string) {
 	}
 	return
 }
+
+// PrepareOrders Create a new map of Orders
 func (o *Orderer) PrepareOrders() {
 	o.Orders = make(map[string]Order)
 }
 
+// Notify sends arbirtrary messages to admins of any label
 func (s *SmtpAuth) Notify(to []AdminContact, label, name, msg string) {
 	toEmails := *new([]string)
 	for _, contact := range to {

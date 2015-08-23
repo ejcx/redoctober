@@ -30,10 +30,10 @@ const (
 type Cryptor struct {
 	records *passvault.Records
 	cache   *keycache.Cache
-	orders  *order.Orderer
+	orders  order.Orderer
 }
 
-func New(records *passvault.Records, cache *keycache.Cache, orders *order.Orderer) Cryptor {
+func New(records *passvault.Records, cache *keycache.Cache, orders order.Orderer) Cryptor {
 	return Cryptor{records, cache, orders}
 }
 
