@@ -44,9 +44,9 @@ type AdminContact struct {
 	Email string
 }
 
-// SmtpAuth contains the information needed
+// SMTPAuth contains the information needed
 // to create an smtp.PlainAuth.
-type SmtpAuth struct {
+type SMTPAuth struct {
 	Host, Username, Password string
 	Port, Addr, Identity     string
 }
@@ -57,12 +57,10 @@ type Notifier interface {
 	Notify(to, label, name, msg string)
 }
 
-// Orders is a mapping of an order id
-// which is a string, to an entire order.
-// Order IDs are not secret and are static.
+// Orderer contains a notifier and a order mapping.
 type Orderer struct {
 	Orders   map[string]Order
-	Notifier SmtpAuth
+	Notifier SMTPAuth
 }
 
 // CreateOrder is essentially a factory function for turning
@@ -106,7 +104,7 @@ func (o *Orderer) PrepareOrders() {
 }
 
 // Notify sends arbirtrary messages to admins of any label
-func (s *SmtpAuth) Notify(to []AdminContact, label, name, msg string) {
+func (s *SMTPAuth) Notify(to []AdminContact, label, name, msg string) {
 	toEmails := *new([]string)
 	for _, contact := range to {
 		if contact.Email != "" {

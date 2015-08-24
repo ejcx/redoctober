@@ -1,7 +1,6 @@
 // Package core handles the main operations of the Red October server.
 //
 // Copyright (c) 2013 CloudFlare, Inc.
-
 package core
 
 import (
@@ -214,7 +213,7 @@ func Init(vaultPath, smtpPath string) error {
 	orderer.PrepareOrders()
 
 	if smtpPath != "" {
-		orderer.Notifier = *new(order.SmtpAuth)
+		orderer.Notifier = *new(order.SMTPAuth)
 		smtpBytes, err := ioutil.ReadFile(smtpPath)
 		if err != nil {
 			return err

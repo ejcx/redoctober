@@ -101,7 +101,7 @@ type SingleWrappedKey struct {
 // keys necessary to decrypt it when delegated.
 type EncryptedData struct {
 	Version   int
-	VaultId   int                         `json:",omitempty"`
+	VaultID   int                         `json:",omitempty"`
 	Labels    []string                    `json:",omitempty"`
 	Predicate string                      `json:",omitempty"`
 	KeySet    []MultiWrappedKey           `json:",omitempty"`
@@ -351,14 +351,14 @@ func (encrypted *EncryptedData) wrapKey(records *passvault.Records, clearKey []b
 			return err
 		}
 
-		for name, _ := range shareSet {
+		for name := range shareSet {
 			encrypted.KeySetRSA[name], err = generateRandomKey(name)
 			crypt, err := aes.NewCipher(encrypted.KeySetRSA[name].aesKey)
 			if err != nil {
 				return err
 			}
 
-			for i, _ := range shareSet[name] {
+			for i := range shareSet[name] {
 				tmp := make([]byte, 16)
 				crypt.Encrypt(tmp, shareSet[name][i])
 				shareSet[name][i] = tmp
@@ -426,7 +426,6 @@ func (encrypted *EncryptedData) unwrapKey(cache *keycache.Cache, user string) (u
 		for name := range nameSet {
 			names = append(names, name)
 		}
-		return
 	} else {
 		var sss msp.MSP
 		sss, err = msp.StringToMSP(encrypted.Predicate)
@@ -443,9 +442,8 @@ func (encrypted *EncryptedData) unwrapKey(cache *keycache.Cache, user string) (u
 		})
 		unwrappedKey, err = sss.RecoverSecret(msp.Modulus(127), &db)
 		names = []string{"Shares"}
-
-		return
 	}
+	return
 }
 
 // Encrypt encrypts data with the keys associated with names. This
@@ -527,11 +525,11 @@ func (c *Cryptor) Decrypt(in []byte, user string) (resp []byte, labels, names []
 	}
 
 	// make sure file was encrypted with the active vault
-	vaultId, err := c.records.GetVaultID()
+	vaultID, err := c.records.GetVaultID()
 	if err != nil {
 		return
 	}
-	if encrypted.VaultId != vaultId {
+	if encrypted.VaultId != vaultID {
 		return nil, nil, nil, secure, errors.New("Wrong vault")
 	}
 
@@ -587,11 +585,11 @@ func (c *Cryptor) GetOwners(in []byte) (names []string, err error) {
 	}
 
 	// make sure file was encrypted with the active vault
-	vaultId, err := c.records.GetVaultID()
+	vaultID, err := c.records.GetVaultID()
 	if err != nil {
 		return
 	}
-	if encrypted.VaultId != vaultId {
+	if encrypted.VaultId != vaultID {
 		err = errors.New("Wrong vault")
 		return
 	}
@@ -620,6 +618,9 @@ func (c *Cryptor) GetOwners(in []byte) (names []string, err error) {
 	return
 }
 
+// GetContacts takes a slice of names and will turn them
+// into a slice of AdminContacts, which is necessary to obtain
+// the admin's emails
 func (c *Cryptor) GetContacts(names []string) (admins []order.AdminContact) {
 	passwordRecords := c.records.Passwords
 	for _, name := range names {
