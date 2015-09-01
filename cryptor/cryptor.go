@@ -101,7 +101,7 @@ type SingleWrappedKey struct {
 // keys necessary to decrypt it when delegated.
 type EncryptedData struct {
 	Version   int
-	VaultID   int                         `json:",omitempty"`
+	VaultId   int                         `json:",omitempty"`
 	Labels    []string                    `json:",omitempty"`
 	Predicate string                      `json:",omitempty"`
 	KeySet    []MultiWrappedKey           `json:",omitempty"`
