@@ -21,17 +21,19 @@ import (
 
 // Usage holds the permissions of a delegated permission
 type Usage struct {
-	Uses   int       // Number of uses delegated
-	Labels []string  // File labels allowed to decrypt
-	Users  []string  // Set of users allows to decrypt
-	Expiry time.Time // Expiration of usage
+	Uses         int       // Number of uses delegated
+	OriginalUses int       // The original number of uses allocated
+	Labels       []string  // File labels allowed to decrypt
+	Users        []string  // Set of users allows to decrypt
+	Expiry       time.Time // Expiration of usage
 }
 
 // ActiveUser holds the information about an actively delegated key.
 type ActiveUser struct {
 	Usage
-	Admin bool
-	Type  string
+	Admin    bool
+	Type     string
+	Duration time.Duration
 
 	rsaKey rsa.PrivateKey
 	eccKey *ecdsa.PrivateKey
@@ -119,6 +121,11 @@ func (cache *Cache) matchUser(name, user string, labels []string) (out ActiveUse
 // for decryption or symmetric encryption
 func (cache *Cache) useKey(name, user string, labels []string) {
 	if val, present := cache.matchUser(name, user, labels); present {
+		// If this is the first usage of the key, re-adjust the expiration
+		// time to prevent the.
+		if val.Usage.Uses == val.Usage.OriginalUses {
+			val.Usage.Expiry = time.Now().Add(val.Duration)
+		}
 		val.Usage.Uses -= 1
 		cache.setUser(val, name)
 	}
@@ -157,7 +164,9 @@ func (cache *Cache) AddKeyFromRecord(record passvault.PasswordRecord, name, pass
 	if err != nil {
 		return
 	}
+	current.Duration = duration
 	current.Usage.Uses = uses
+	current.Usage.OriginalUses = uses
 	current.Usage.Expiry = time.Now().Add(duration)
 	current.Usage.Users = users
 	current.Usage.Labels = labels
