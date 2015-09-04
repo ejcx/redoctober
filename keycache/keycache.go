@@ -2,7 +2,6 @@
 // for the Red October server.
 //
 // Copyright (c) 2013 CloudFlare, Inc.
-
 package keycache
 
 import (
@@ -122,7 +121,7 @@ func (cache *Cache) matchUser(name, user string, labels []string) (out ActiveUse
 func (cache *Cache) useKey(name, user string, labels []string) {
 	if val, present := cache.matchUser(name, user, labels); present {
 		// If this is the first usage of the key, re-adjust the expiration
-		// time to prevent the.
+		// time to prevent the decryption window from being very small.
 		if val.Usage.Uses == val.Usage.OriginalUses {
 			val.Usage.Expiry = time.Now().Add(val.Duration)
 		}
