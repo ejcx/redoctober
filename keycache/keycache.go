@@ -21,18 +21,18 @@ import (
 
 // Usage holds the permissions of a delegated permission
 type Usage struct {
-	Uses   int       // Number of uses delegated
-	Labels []string  // File labels allowed to decrypt
-	Users  []string  // Set of users allows to decrypt
-	Expiry time.Time // Expiration of usage
+	Uses     int       // Number of uses delegated
+	Labels   []string  // File labels allowed to decrypt
+	Users    []string  // Set of users allows to decrypt
+	Expiry   time.Time // Expiration of usage
+	OrderNum string    // OrderNumber associated with delegation
 }
 
 // ActiveUser holds the information about an actively delegated key.
 type ActiveUser struct {
 	Usage
-	Admin bool
-	Type  string
-
+	Admin  bool
+	Type   string
 	rsaKey rsa.PrivateKey
 	eccKey *ecdsa.PrivateKey
 }
@@ -139,7 +139,16 @@ func (cache *Cache) FlushCache() {
 // Refresh purges all expired or used up keys.
 func (cache *Cache) Refresh() {
 	for name, active := range cache.UserKeys {
-		if active.Usage.Expiry.Before(time.Now()) || active.Usage.Uses <= 0 {
+		isOrderUp := false
+		isUsedUp := false
+		if len(active.Usage.OrderNum) != 0 {
+			if time.Now().After(active.Usage.Expiry) {
+				isOrderUp = true
+			}
+		} else {
+			isUsedUp = active.Usage.Uses <= 0
+		}
+		if active.Usage.Expiry.Before(time.Now()) || (isUsedUp || isOrderUp) {
 			log.Println("Record expired", name, active.Usage.Users, active.Usage.Labels, active.Usage.Expiry)
 			delete(cache.UserKeys, name)
 		}
@@ -147,7 +156,7 @@ func (cache *Cache) Refresh() {
 }
 
 // AddKeyFromRecord decrypts a key for a given record and adds it to the cache.
-func (cache *Cache) AddKeyFromRecord(record passvault.PasswordRecord, name, password string, users, labels []string, uses int, durationString string) (err error) {
+func (cache *Cache) AddKeyFromRecord(record passvault.PasswordRecord, name, password string, users, labels []string, uses int, durationString string, orderNum string) (err error) {
 	var current ActiveUser
 
 	cache.Refresh()
@@ -161,6 +170,7 @@ func (cache *Cache) AddKeyFromRecord(record passvault.PasswordRecord, name, pass
 	current.Usage.Expiry = time.Now().Add(duration)
 	current.Usage.Users = users
 	current.Usage.Labels = labels
+	current.Usage.OrderNum = orderNum
 
 	// get decryption keys
 	switch record.Type {

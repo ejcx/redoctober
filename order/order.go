@@ -2,39 +2,55 @@ package order
 
 import (
 	"bytes"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"log"
 	"net/smtp"
 	"text/template"
+	"time"
 )
 
 // NewOrder is sent to admins of a ciphertext
 // when a new order is created.
 var NewOrder = `
 	Hello,
-	{{.From}} has requested delegates for {{.Label}}
+	{{.From}} has requested delegates for {{.Label}}. 
+
+	Please use the following order number: {{.Order}}.
 `
 
 // OrderFulfilled is sent to admins of a ciphertext
 // when a requested ciphertext is decrypted
 var OrderFulfilled = `
 	Hello,
-	{{.From}}'s request for has been {{.Label}} fulfilled
+	{{.From}}'s request for has been {{.Label}} fulfilled.
+
+	The following order number is now fulfilled: {{.Order}}.
+`
+
+var OrderLocked = `
+	Hello,
+	{{.From}} has locked their order for {{.Label}}.
+
+	The corresponding order num was: {{.Order}}.
+
 `
 
 // Order is an individual request for delegates that
 // any user can make.
 type Order struct {
-	Name string
-	Num  string
-
-	Delegated       int
-	ToDelegate      int
-	AdminsDelegated []string
-	Admins          []AdminContact
-	Label           string
+	Name              string
+	Num               string
+	TimeRequested     time.Time
+	ExpiryTime        time.Time
+	DurationRequested time.Duration
+	Delegated         int
+	ToDelegate        int
+	AdminsDelegated   []string
+	Admins            []AdminContact
+	Label             string
 }
 
 // AdminContact essentially couples the name with
@@ -65,11 +81,14 @@ type Orderer struct {
 
 // CreateOrder is essentially a factory function for turning
 // the information that belongs in an order, into an order type
-func CreateOrder(name string, labels string, orderNum string, contacts []AdminContact, numDelegated int) (ord Order) {
+func CreateOrder(name string, labels string, orderNum string, time time.Time, expiryTime time.Time, duration time.Duration, contacts []AdminContact, numDelegated int) (ord Order) {
 	ord.Name = name
 	ord.Num = orderNum
 	ord.Label = labels
 	ord.Admins = contacts
+	ord.TimeRequested = time
+	ord.ExpiryTime = expiryTime
+	ord.DurationRequested = duration
 	ord.Delegated = numDelegated
 	return
 }
@@ -78,24 +97,13 @@ func CreateOrder(name string, labels string, orderNum string, contacts []AdminCo
 // into an order number. Currently it is only a SHA256 sum
 // of the label and orderer name. This means order numbers
 // are static for as long as orders are being placed.
-func GenerateNum(name string, label string) (num string) {
-
+func GenerateNum() (num string) {
+	b := make([]byte, 32)
 	hasher := sha256.New()
-	hasher.Write([]byte(name + label))
+	rand.Read(b)
+	hasher.Write(b)
 	hexNum := hasher.Sum(nil)
 	return hex.EncodeToString(hexNum)
-
-}
-
-// GenerateNums will take a slice of labels and names
-// and return all of their possible order numbers.
-func GenerateNums(names, labels []string) (nums []string) {
-	for _, name := range names {
-		for _, label := range labels {
-			nums = append(nums, GenerateNum(name, label))
-		}
-	}
-	return
 }
 
 // PrepareOrders Create a new map of Orders
@@ -104,7 +112,7 @@ func (o *Orderer) PrepareOrders() {
 }
 
 // Notify sends arbirtrary messages to admins of any label
-func (s *SMTPAuth) Notify(to []AdminContact, label, name, msg string) {
+func (s *SMTPAuth) Notify(to []AdminContact, label, name, orderNum, msg string) {
 	toEmails := *new([]string)
 	for _, contact := range to {
 		if contact.Email != "" {
@@ -122,11 +130,13 @@ func (s *SMTPAuth) Notify(to []AdminContact, label, name, msg string) {
 	if err != nil {
 		log.Printf("%s", err.Error())
 	}
-	emailLabels := map[string]string{"From": name, "Label": label}
+	emailLabels := map[string]string{"From": name, "Label": label, "Order": orderNum}
 
 	tmpl.Execute(emailBytes, emailLabels)
 	err = smtp.SendMail(fullHost, smtpAuth, s.Username, toEmails, emailBytes.Bytes())
 	if err != nil {
 		log.Printf("%s", err.Error())
+	} else {
+		log.Printf("Mail Successfully Sent")
 	}
 }

@@ -22,13 +22,11 @@
 			<div class="collapse navbar-collapse">
 				<ul class="nav navbar-nav">
 					<li><a href="#delegate">Delegate</a></li>
-					<li><a href="#admin">Admin</a></li>
-					<li><a href="#create">Create</a></li>
 					<li><a href="#summary">Summary</a></li>
-					<li><a href="#change-password">Change Password</a></li>
-					<li><a href="#modify-user">Modify User</a></li>
+					<li><a href="#admin">Admin</a></li>
 					<li><a href="#encrypt">Encrypt</a></li>
 					<li><a href="#decrypt">Decrypt</a></li>
+					<li><a href="#owners">Owners</a></li>
 				</ul>
 			</div>
 		</div>
@@ -56,13 +54,23 @@
 					<div class="form-group row">
 						<div class="col-md-6">
 							<label for="delegate-user-time">Delegation Time <small>(e.g., 2h34m)</small></label>
-							<input type="text" name="Time" class="form-control" id="delegate-user-time" placeholder="1h" required />
+							<input type="text" name="Time" class="form-control" id="delegate-user-time" placeholder="1h"/>
 						</div>
 						<div class="col-md-6">
 							<label for="delegate-uses">Uses</label>
-							<input type="number" name="Uses" class="form-control" id="delegate-uses" placeholder="5" required />
+							<input type="number" name="Uses" class="form-control" id="delegate-uses" placeholder="5"/>
 						</div>
 					</div>
+					<div class="form-group row">
+						<div class="col-md-offset-6 col-md-6"><h5>Or</h5></div>
+					</div>
+					<div class="form-group row">
+						<div class="col-md-offset-6 col-md-6">
+							<label for="delegate-user-time">Order Number</label>
+							<input type="text" name="OrderNum" class="form-control" id="delegate-order-num" placeholder="410f42a3..."/>
+						</div>
+					</div>
+
 					<div class="form-group row">
 						<div class="col-md-6">
 							<label for="delegate-users">Users to allow <small>(comma separated)</small></label>
@@ -76,31 +84,13 @@
 					<button type="submit" class="btn btn-primary">Delegate</button>
 				</form>
 			</div>
-
 		</section>
 
 		<hr />
 
 		<section class="row">
-			<div class="col-md-6">
-				<h3 id="admin">Create vault/admin</h3>
-				<form id="vault-create" class="form-inline ro-admin-create" role="form" action="/create" method="post">
-					<div class="feedback admin-feedback"></div>
-
-					<div class="form-group">
-						<label class="sr-only" for="admin-create-user">User name</label>
-						<input type="text" name="Name" class="form-control" id="admin-create-user" placeholder="User name" required />
-					</div>
-					<div class="form-group">
-						<label class="sr-only" for="admin-create-pass">Password</label>
-						<input type="password" name="Password" class="form-control" id="admin-create-pass" placeholder="Password" required />
-					</div>
-					<button type="submit" class="btn btn-primary">Create Admin</button>
-				</form>
-
-				<hr />
-
-				<h3 id="summary">User summary / delegation list</h3> 
+			<div id="summary" class="col-md-6">
+				<h3>User summary / delegation list</h3>
 
 				<form id="vault-summary" class="form-inline ro-summary" role="form" action="/summary" method="post">
 					<div class="feedback summary-feedback"></div>
@@ -124,9 +114,30 @@
 					<ul class="list-group summary-all-users"></ul>
 				</div>
 			</div>
+		</section>
 
-			<div class="col-md-6">
-				<h3 id="create">Create</h3>
+		<hr />
+
+		<section class="row">
+			<div class="col-md-6" id="admin">
+				<h3>Create vault</h3>
+				<form id="vault-create" class="form-inline ro-admin-create" role="form" action="/create" method="post">
+					<div class="feedback admin-feedback"></div>
+
+					<div class="form-group">
+						<label class="sr-only" for="admin-create-user">User name</label>
+						<input type="text" name="Name" class="form-control" id="admin-create-user" placeholder="User name" required />
+					</div>
+					<div class="form-group">
+						<label class="sr-only" for="admin-create-pass">Password</label>
+						<input type="password" name="Password" class="form-control" id="admin-create-pass" placeholder="Password" required />
+					</div>
+					<button type="submit" class="btn btn-primary">Create Admin</button>
+				</form>
+
+				<hr />
+
+				<h3>Create User</h3>
 
 				<form id="user-create" class="ro-user-create" role="form" action="/delegate" method="post">
 					<div class="feedback create-feedback"></div>
@@ -158,7 +169,7 @@
 
 		<section class="row">
 			<div id="change-password" class="col-md-6">
-				<h3>Change password</h3>
+				<h3>Change account</h3>
 
 				<form id="user-change-password" class="ro-user-change-password" role="form" action="/password" method="post">
 					<div class="feedback change-password-feedback"></div>
@@ -166,22 +177,22 @@
 					<div class="form-group row">
 						<div class="col-md-6">
 							<label for="user-name">User name</label>
-							<input type="text" name="Name" class="form-control" id="user-name" placeholder="User name" required />
+							<input type="text" name="Name" class="form-control" id="user-name" placeholder="User name"/ required>
 						</div>
 						<div class="col-md-6">
 							<label for="user-pass">Password</label>
-							<input type="password" name="Password" class="form-control" id="user-pass" placeholder="Password" required />
+							<input type="password" name="Password" class="form-control" id="user-pass" placeholder="Password"/ required>
 						</div>
 					</div>
 					<div class="form-group">
-						<label for="user-pass">New password</label>
-						<input type="password" name="NewPassword" class="form-control" id="user-pass-new" placeholder="New password" required />
+						<label for="user-pass">New password. Blank for no change.</label>
+						<input type="password" name="NewPassword" class="form-control" id="user-pass-new" placeholder="New Password"/>
+						<label for="user-email">Email. Blank for no change.</label>
+						<input type="email" name="Email" class="form-control" id="user-email-new" placeholder="New Email"/>
 					</div>
 					<button type="submit" class="btn btn-primary">Change password</button>
 				</form>
-			</div>
 
-			<div id="modify" class="col-md-6">
 				<h3>Modify user</h3>
 
 				<form id="user-modify" class="ro-user-modify" role="form" action="/modify" method="post">
@@ -217,7 +228,7 @@
 		</section>
 		<hr />
 		<section class="row">
-			<div id="encrypt-data" class="col-md-6">
+			<div id="encrypt" class="col-md-6">
 				<h3>Encrypt data</h3>
 
 				<form id="encrypt" class="ro-user-encrypt" role="form" action="/encrypt" method="post">
@@ -256,7 +267,10 @@
 					<button type="submit" class="btn btn-primary">Encrypt!</button>
 				</form>
 			</div>
-			<div id="decrypt-data" class="col-md-6">
+		</section>
+		<hr />
+		<section class="row">
+			<div id="decrypt" class="col-md-6">
 				<h3>Decrypt data</h3>
 
 				<form id="decrypt" class="ro-user-decrypt" role="form" action="/decrypt" method="post">
@@ -280,6 +294,129 @@
 				</form>
 			</div>
 		</section>
+		<hr />
+		<section class="row">
+			<div id="owners" class="col-md-6">
+				<h3>Get owners</h3>
+
+				<form id="owners" class="ro-user-owners" role="form" action="/owners" method="post">
+					<div class="feedback owners-feedback"></div>
+
+					<div class="form-group">
+						<label for="owners-data">Data</label>
+						<textarea name="Data" class="form-control" id="owners-data" rows="5" required></textarea>
+					</div>
+					<button type="submit" class="btn btn-primary">Get Owners</button>
+				</form>
+			</div>
+		</section>
+		<hr />
+		<section class="row">
+			<div id="orders" class="col-md-6">
+				<h3>Create Order</h3>
+
+				<form id="order" class="ro-user-order" role="form" action="/order" method="post">
+					<div class="feedback order-feedback"></div>
+					<div class="form-group">
+					<div class="form-group row">
+						<div class="col-md-6">
+							<label for="order-user-admin">User name</label>
+							<input type="text" name="Name" class="form-control" id="order-user-admin" placeholder="User name" required />
+						</div>
+						<div class="col-md-6">
+							<label for="decrypt-user-pass">Password</label>
+							<input type="password" name="Password" class="form-control" id="order-user-pass" placeholder="Password" required />
+						</div>
+						<div class="col-md-6">
+							<label for="decrypt-user-pass">Label</label>
+							<input type="text" name="Label" class="form-control" id="order-user-label" placeholder="Label" required />
+						</div>
+						<div class="col-md-6">
+							<label for="decrypt-user-pass">Duration (e.g., 2h34m)</label>
+							<input type="text" name="Duration" class="form-control" id="order-user-duration" placeholder="1h" required />
+						</div>
+					</div>
+
+						<label for="owners-data">Data</label>
+						<textarea name="Data" class="form-control" id="owners-data" rows="5" required></textarea>
+					</div>
+					<button type="submit" class="btn btn-primary">Create Order</button>
+				</form>
+			</div>
+		</section>
+		<hr />
+		<section class="row">
+			<div id="ordersinfo" class="col-md-6">
+				<h3>Order Info</h3>
+
+				<form id="orderinfo" class="ro-user-order" role="form" action="/orderinfo" method="post">
+					<div style="overflow-wrap: break-word;" class="feedback orderinfo-feedback"></div>
+					<div class="form-group">
+					<div class="form-group row">
+						<div class="col-md-6">
+							<label for="orderinfo-user-admin">User name</label>
+							<input type="text" name="Name" class="form-control" id="orderinfo-user-admin" placeholder="User name" required />
+						</div>
+						<div class="col-md-6">
+							<label for="orderinfo-user-admin">Password</label>
+							<input type="password" name="Password" class="form-control" id="orderinfo-user-pass" placeholder="Password" required />
+						</div>
+						<div class="col-md-6">
+							<label for="orderinfo-order-num">Order Num</label>
+							<input type="text" name="OrderNum" class="form-control" id="orderinfo-user-label" placeholder="Order Number" required />
+						</div>
+					</div>
+					<button type="submit" class="btn btn-primary">Order Info</button>
+				</form>
+			</div>
+		</section>
+		<hr />
+		<section class="row">
+			<div id="ordersout" class="col-md-6">
+				<h3>Outstanding Orders</h3>
+
+				<form id="orderout" class="ro-user-order" role="form" action="/orderout" method="post">
+					<div style="overflow-wrap: break-word;" class="feedback ordersout-feedback"></div>
+					<div class="form-group">
+					<div class="form-group row">
+						<div class="col-md-6">
+							<label for="ordersout-user-admin">User name</label>
+							<input type="text" name="Name" class="form-control" id="ordersout-user-admin" placeholder="User name" required />
+						</div>
+						<div class="col-md-6">
+							<label for="ordersout-user-admin">Password</label>
+							<input type="password" name="Password" class="form-control" id="ordersout-user-pass" placeholder="Password" required />
+						</div>
+					</div>
+					<button type="submit" class="btn btn-primary">Outstanding Orders</button>
+				</form>
+			</div>
+		</section>
+		<section class="row">
+			<div id="orderlock" class="col-md-6">
+				<h3>Order Lock</h3>
+
+				<form id="orderlock" class="ro-user-order" role="form" action="/orderlock" method="post">
+					<div style="overflow-wrap: break-word;" class="feedback ordersout-feedback"></div>
+					<div class="form-group">
+					<div class="form-group row">
+						<div class="col-md-6">
+							<label for="orderlock-user-admin">User name</label>
+							<input type="text" name="Name" class="form-control" id="orderlock-user-admin" placeholder="User name" required />
+						</div>
+						<div class="col-md-6">
+							<label for="orderlock-user-admin">Password</label>
+							<input type="password" name="Password" class="form-control" id="orderlock-user-pass" placeholder="Password" required />
+						</div>
+						<div class="col-md-6">
+							<label for="orderlock-order-num">Order Num</label>
+							<input type="text" name="OrderNum" class="form-control" id="orderlock-ordernum-label" placeholder="Order Number" required />
+						</div>
+					</div>
+					<button type="submit" class="btn btn-primary">Outstanding Orders</button>
+				</form>
+			</div>
+		</section>
 	</div>
 
 	<footer id="footer" class="footer">
@@ -298,7 +435,6 @@
 
 			function submit( $form, options ){
 				options || (options = {});
-
 				$.ajax({
 					url: $form.attr('action'),
 					data: JSON.stringify( options.data ),
@@ -476,7 +612,7 @@
 			});
 
 			// Decrypt data
-			$('body').on('submit', '#decrypt', function(evt){
+			$('body').on('submit', 'form#decrypt', function(evt){
 				evt.preventDefault();
 				var $form = $(evt.currentTarget),
 					data = serialize($form);
@@ -486,6 +622,90 @@
 					success : function(d){
 					d = JSON.parse(window.atob(d.Response));
 					$form.find('.feedback').empty().append( makeAlert({ type: (d.Secure ? 'success' : 'warning'), message: '<p>Successfully decrypted data:</p><pre>'+ window.atob(d.Data)+'</pre><p>Delegates: '+d.Delegates.sort().join(', ')+'</p>' }) );
+					}
+				});
+			});
+
+			// Get owners
+			$('body').on('submit', 'form#owners', function(evt){
+				evt.preventDefault();
+				var $form = $(evt.currentTarget),
+					data = serialize($form);
+
+				submit( $form, {
+					data : data,
+					success : function(d){
+					$form.find('.feedback').empty().append( makeAlert({ type: 'success', message: '<p>Owners: '+d.Owners.sort().join(', ')+'</p>' }) );
+					}
+				});
+			});
+			// Create an order
+			$('body').on('submit', 'form#order', function(evt){
+				evt.preventDefault();
+				var $form = $(evt.currentTarget),
+					data = serialize($form);
+
+				submit( $form, {
+					data : data,
+					success : function(d){
+					d = JSON.parse(window.atob(d.Response));
+					$form.find('.feedback').empty().append(
+						makeAlert({ type: 'success', message: '<p>Order Num: '+d.Num+'</p>' }) );
+					}
+				});
+			});
+			// Get order info
+			$('body').on('submit', 'form#orderinfo', function(evt){
+				evt.preventDefault();
+				var $form = $(evt.currentTarget),
+					data = serialize($form);
+
+				submit( $form, {
+					data : data,
+					success : function(d){
+					d = window.atob(d.Response);
+					$form.find('.feedback').empty().append(
+						makeAlert({ type: 'success', message: '<p>'+d+'</p>' }) );
+					}
+				});
+			});
+			// Get outstanding order info
+			$('body').on('submit', 'form#orderout', function(evt){
+				evt.preventDefault();
+				var $form = $(evt.currentTarget),
+					data = serialize($form);
+
+				submit( $form, {
+					data : data,
+					success : function(d){
+					d = JSON.parse(window.atob(d.Response));
+					ordout = "";
+					for (var jj in d){
+						if (!d.hasOwnProperty(jj))
+							continue;
+						var o = d[jj]
+						ordout += o.Name + " requesting " + o.Label + " has " + o.Delegated + "\n";
+
+					}
+					$form.find('.feedback').empty().append(
+						makeAlert({ type: 'success', message: '<p>'+ordout+'</p>' }) );
+					}
+				});
+			});
+			// Get outstanding order info
+			$('body').on('submit', 'form#orderlock', function(evt){
+				evt.preventDefault();
+				var $form = $(evt.currentTarget),
+					data = serialize($form);
+
+				submit( $form, {
+					data : data,
+					success : function(d){
+					d = JSON.parse(window.atob(d.Response));
+					ordout = "";
+					console.log(d);
+					$form.find('.feedback').empty().append(
+						makeAlert({ type: 'success', message: '<p>'+ordout+'</p>' }) );
 					}
 				});
 			});

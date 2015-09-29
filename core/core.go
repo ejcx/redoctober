@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"time"
 
 	"github.com/cloudflare/redoctober/cryptor"
 	"github.com/cloudflare/redoctober/keycache"
@@ -46,11 +47,11 @@ type PurgeRequest struct {
 type DelegateRequest struct {
 	Name     string
 	Password string
-
-	Uses   int
-	Time   string
-	Users  []string
-	Labels []string
+	OrderNum string
+	Uses     int
+	Time     string
+	Users    []string
+	Labels   []string
 }
 
 type PasswordRequest struct {
@@ -103,8 +104,9 @@ type OrderRequest struct {
 	Name     string
 	Password string
 
-	Data  []byte
-	Label string
+	Data     []byte
+	Label    string
+	Duration string
 }
 
 type OrderInfoRequest struct {
@@ -116,6 +118,12 @@ type OrderInfoRequest struct {
 type OrderOutstandingRequest struct {
 	Name     string
 	Password string
+}
+
+type OrderLockRequest struct {
+	Name     string
+	Password string
+	OrderNum string
 }
 
 // These structures map the JSON responses that will be sent from the API
@@ -366,19 +374,30 @@ func Delegate(jsonIn []byte) ([]byte, error) {
 		}
 	}
 
+	// If OrderNum is set, verify it is a proper ordernum
+	// and also swap out the Delegated time with the expirytime
+	// from the order.
+	if len(s.OrderNum) != 0 {
+		if ord, ok := orderer.Orders[s.OrderNum]; ok {
+			// AddKeyFromRecord expects a string representing a duration.
+			// Get a string for the correct duration based on the time that
+			// the key should expire in the order.
+			s.Time = ord.ExpiryTime.Sub(time.Now()).String()
+		} else {
+			err = errors.New("Invalid order numbler.")
+			return jsonStatusError(err)
+		}
+	}
 	// add signed-in record to active set
-	if err = cache.AddKeyFromRecord(pr, s.Name, s.Password, s.Users, s.Labels, s.Uses, s.Time); err != nil {
+	if err = cache.AddKeyFromRecord(pr, s.Name, s.Password, s.Users, s.Labels, s.Uses, s.Time, s.OrderNum); err != nil {
 		return jsonStatusError(err)
 	}
-
-	// if something was delegated, check to see the current orders and
-	// increment it.
-	orderNums := order.GenerateNums(s.Users, s.Labels)
-	for _, orderNum := range orderNums {
-		if ord, ok := orderer.Orders[orderNum]; ok {
-			ord.Delegated++
-			orderer.Orders[orderNum] = ord
-		}
+	// Increment after Adding key. Little messier, but if something
+	// breaks while adding key we are covered
+	if ord, ok := orderer.Orders[s.OrderNum]; ok {
+		// Increment delegated counter
+		ord.Delegated++
+		orderer.Orders[s.OrderNum] = ord
 	}
 	return jsonStatusOk()
 }
@@ -473,7 +492,10 @@ func Decrypt(jsonIn []byte) ([]byte, error) {
 		return jsonStatusError(err)
 	}
 
-	data, allLabels, names, secure, err := crypt.Decrypt(s.Data, s.Name)
+	// Make sure we refresh the cache first, since
+	// orders are time based.
+	cache.Refresh()
+	data, names, secure, err := crypt.Decrypt(s.Data, s.Name)
 	if err != nil {
 		return jsonStatusError(err)
 	}
@@ -487,20 +509,6 @@ func Decrypt(jsonIn []byte) ([]byte, error) {
 	out, err := json.Marshal(resp)
 	if err != nil {
 		return jsonStatusError(err)
-	}
-
-	// If everything decrpyted properly. Check to
-	// see if there was an order for it and kill it.
-	orderNums := order.GenerateNums([]string{s.Name}, allLabels)
-	for _, orderNum := range orderNums {
-		if _, ok := orderer.Orders[orderNum]; ok {
-			owners, err := crypt.GetOwners(s.Data)
-			if err == nil {
-				contacts := crypt.GetContacts(owners)
-				go orderer.Notifier.Notify(contacts, orderNum, s.Name, order.OrderFulfilled)
-			}
-			delete(orderer.Orders, orderNum)
-		}
 	}
 
 	return jsonResponse(out)
@@ -639,23 +647,27 @@ func Order(jsonIn []byte) (out []byte, err error) {
 		errors.New("Unable to find the ciphertext's owners.")
 		return
 	}
-	// If this is a duplicate order then do nothing
-	orderNum := order.GenerateNum(o.Name, o.Label)
-	if _, dupe := orderer.Orders[orderNum]; dupe {
-		errors.New("An order for delegations already exists")
-		return
-	}
 	cache.Refresh()
-	// Figure out the number of delegates already, for the case
-	// where someone asks for delegates when they are already
-	// half delegated
 	contacts := crypt.GetContacts(owners)
-	go orderer.Notifier.Notify(contacts, o.Label, o.Name, order.NewOrder)
+	orderNum := order.GenerateNum()
+
+	// Notify the admins that someone is requesting this order.
+	go orderer.Notifier.Notify(contacts, o.Label, o.Name, orderNum, order.NewOrder)
 
 	numDelegated := cache.DelegateStatus(o.Name, o.Label, owners)
+	duration, err := time.ParseDuration(o.Duration)
+	if err != nil {
+		errors.New("Invalid duration string.")
+		return
+	}
+	currentTime := time.Now()
+	expiryTime := currentTime.Add(duration)
 	order := order.CreateOrder(o.Name,
 		o.Label,
 		orderNum,
+		currentTime,
+		expiryTime,
+		duration,
 		contacts,
 		numDelegated)
 	orderer.Orders[orderNum] = order
@@ -722,5 +734,57 @@ func OrderInfo(jsonIn []byte) (out []byte, err error) {
 			return jsonStatusError(err)
 		}
 	}
+	return jsonResponse(out)
+}
+
+// OrderLock is used by someone who has been granted an order.
+// It is used to say "All Done", and rescind the delegates
+// that the user currently has.
+func OrderLock(jsonIn []byte) (out []byte, err error) {
+	var o OrderLockRequest
+
+	defer func() {
+		if err != nil {
+			log.Printf("core.orderlock failed: user=%s %v", o.Name, err)
+		} else {
+			log.Printf("core.orderlock success: user=%s", o.Name)
+		}
+	}()
+
+	if err = json.Unmarshal(jsonIn, &o); err != nil {
+		return jsonStatusError(err)
+	}
+
+	if err := validateUser(o.Name, o.Password, false); err != nil {
+		return jsonStatusError(err)
+	}
+
+	// Make sure the order num belongs to the user locking
+	if ord, ok := orderer.Orders[o.OrderNum]; ok {
+		if ord.Name != o.Name {
+			err = errors.New("Order Number is for a different user.")
+			return jsonStatusError(err)
+		}
+	}
+
+	// Remove everything in the keycache with the cooresponding ordernum
+	for name, activeuser := range cache.UserKeys {
+		if activeuser.Usage.OrderNum == o.OrderNum {
+			delete(cache.UserKeys, name)
+		}
+	}
+
+	// Remove the order from the order array.
+	delete(orderer.Orders, o.OrderNum)
+
+	//Make a response
+	resp := make(map[string]string)
+	resp["Deleted"] = o.OrderNum
+	out, err = json.Marshal(resp)
+	if err != nil {
+		return jsonStatusError(err)
+	}
+
+	// Remove the delegates that the user have that contain this order num
 	return jsonResponse(out)
 }

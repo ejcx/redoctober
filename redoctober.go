@@ -40,6 +40,7 @@ var functions = map[string]func([]byte) ([]byte, error){
 	"/order":     core.Order,
 	"/orderout":  core.OrdersOut,
 	"/orderinfo": core.OrderInfo,
+	"/orderlock": core.OrderLock,
 }
 
 type userRequest struct {
@@ -308,13 +309,23 @@ var indexHtml = []byte(`<!DOCTYPE html>
 					<div class="form-group row">
 						<div class="col-md-6">
 							<label for="delegate-user-time">Delegation Time <small>(e.g., 2h34m)</small></label>
-							<input type="text" name="Time" class="form-control" id="delegate-user-time" placeholder="1h" required />
+							<input type="text" name="Time" class="form-control" id="delegate-user-time" placeholder="1h"/>
 						</div>
 						<div class="col-md-6">
 							<label for="delegate-uses">Uses</label>
-							<input type="number" name="Uses" class="form-control" id="delegate-uses" placeholder="5" required />
+							<input type="number" name="Uses" class="form-control" id="delegate-uses" placeholder="5"/>
 						</div>
 					</div>
+					<div class="form-group row">
+						<div class="col-md-offset-6 col-md-6"><h5>Or</h5></div>
+					</div>
+					<div class="form-group row">
+						<div class="col-md-offset-6 col-md-6">
+							<label for="delegate-user-time">Order Number</label>
+							<input type="text" name="OrderNum" class="form-control" id="delegate-order-num" placeholder="410f42a3..."/>
+						</div>
+					</div>
+
 					<div class="form-group row">
 						<div class="col-md-6">
 							<label for="delegate-users">Users to allow <small>(comma separated)</small></label>
@@ -575,6 +586,10 @@ var indexHtml = []byte(`<!DOCTYPE html>
 							<label for="decrypt-user-pass">Label</label>
 							<input type="text" name="Label" class="form-control" id="order-user-label" placeholder="Label" required />
 						</div>
+						<div class="col-md-6">
+							<label for="decrypt-user-pass">Duration (e.g., 2h34m)</label>
+							<input type="text" name="Duration" class="form-control" id="order-user-duration" placeholder="1h" required />
+						</div>
 					</div>
 
 						<label for="owners-data">Data</label>
@@ -626,6 +641,31 @@ var indexHtml = []byte(`<!DOCTYPE html>
 						<div class="col-md-6">
 							<label for="ordersout-user-admin">Password</label>
 							<input type="password" name="Password" class="form-control" id="ordersout-user-pass" placeholder="Password" required />
+						</div>
+					</div>
+					<button type="submit" class="btn btn-primary">Outstanding Orders</button>
+				</form>
+			</div>
+		</section>
+		<section class="row">
+			<div id="orderlock" class="col-md-6">
+				<h3>Order Lock</h3>
+
+				<form id="orderlock" class="ro-user-order" role="form" action="/orderlock" method="post">
+					<div style="overflow-wrap: break-word;" class="feedback ordersout-feedback"></div>
+					<div class="form-group">
+					<div class="form-group row">
+						<div class="col-md-6">
+							<label for="orderlock-user-admin">User name</label>
+							<input type="text" name="Name" class="form-control" id="orderlock-user-admin" placeholder="User name" required />
+						</div>
+						<div class="col-md-6">
+							<label for="orderlock-user-admin">Password</label>
+							<input type="password" name="Password" class="form-control" id="orderlock-user-pass" placeholder="Password" required />
+						</div>
+						<div class="col-md-6">
+							<label for="orderlock-order-num">Order Num</label>
+							<input type="text" name="OrderNum" class="form-control" id="orderlock-ordernum-label" placeholder="Order Number" required />
 						</div>
 					</div>
 					<button type="submit" class="btn btn-primary">Outstanding Orders</button>
@@ -902,6 +942,23 @@ var indexHtml = []byte(`<!DOCTYPE html>
 						ordout += o.Name + " requesting " + o.Label + " has " + o.Delegated + "\n";
 
 					}
+					$form.find('.feedback').empty().append(
+						makeAlert({ type: 'success', message: '<p>'+ordout+'</p>' }) );
+					}
+				});
+			});
+			// Get outstanding order info
+			$('body').on('submit', 'form#orderlock', function(evt){
+				evt.preventDefault();
+				var $form = $(evt.currentTarget),
+					data = serialize($form);
+
+				submit( $form, {
+					data : data,
+					success : function(d){
+					d = JSON.parse(window.atob(d.Response));
+					ordout = "";
+					console.log(d);
 					$form.find('.feedback').empty().append(
 						makeAlert({ type: 'success', message: '<p>'+ordout+'</p>' }) );
 					}
